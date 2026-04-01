@@ -1,0 +1,64 @@
+name: burnrate
+description: Unified LLM & cloud billing monitor
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Secure local storage
+  flutter_secure_storage: ^9.2.2
+
+  # HTTP client
+  dio: ^5.7.0
+
+  # Charts
+  fl_chart: ^0.69.0
+
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+
+  # Background tasks
+  workmanager: ^0.5.2
+
+  # Non-sensitive settings
+  shared_preferences: ^2.3.2
+
+  # Crypto (AWS V4 signing + OCI RSA)
+  pointycastle: ^3.9.1
+  crypto: ^3.0.5
+  asn1lib: ^1.5.4
+
+  # Code generation helpers
+  json_annotation: ^4.9.0
+  freezed_annotation: ^2.4.0
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.12
+  json_serializable: ^6.8.0
+  freezed: ^2.5.7
+  riverpod_generator: ^2.4.3
+  custom_lint: ^0.6.7
+  riverpod_lint: ^2.3.13
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
