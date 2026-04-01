@@ -5,6 +5,7 @@ import 'package:burnrate/data/models/credential.dart';
 import 'package:burnrate/data/models/service_type.dart';
 import 'package:burnrate/presentation/providers/credential_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,13 +20,12 @@ class CredentialInputScreen extends ConsumerStatefulWidget {
       _CredentialInputScreenState();
 }
 
-class _CredentialInputScreenState
-    extends ConsumerState<CredentialInputScreen> {
+class _CredentialInputScreenState extends ConsumerState<CredentialInputScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   bool _obscure = true;
 
-  // Field controllers
+  // Credential controllers
   final _apiKeyCtrl = TextEditingController();
   final _projectIdCtrl = TextEditingController();
   final _accessKeyIdCtrl = TextEditingController();
@@ -36,8 +36,13 @@ class _CredentialInputScreenState
   final _fingerprintCtrl = TextEditingController();
   final _privateKeyCtrl = TextEditingController();
 
+  // Capacity controller (shared across all service types)
+  final _capacityCtrl = TextEditingController();
+
   ServiceType get _currentType =>
       ServiceType.values.byName(widget.remaining.first);
+
+  int get _remaining => widget.remaining.length;
 
   @override
   void dispose() {
@@ -50,6 +55,7 @@ class _CredentialInputScreenState
     _userOcidCtrl.dispose();
     _fingerprintCtrl.dispose();
     _privateKeyCtrl.dispose();
+    _capacityCtrl.dispose();
     super.dispose();
   }
 
@@ -57,11 +63,19 @@ class _CredentialInputScreenState
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
-    final credential = _buildCredential();
-    await ref
-        .read(credentialRepositoryProvider)
-        .save(credential);
+    final credRepo = ref.read(credentialRepositoryProvider);
+    final capacityRepo = ref.read(capacityRepositoryProvider);
+
+    await credRepo.save(_buildCredential());
     ref.invalidate(configuredServicesProvider);
+
+    final capacityText = _capacityCtrl.text.trim();
+    if (capacityText.isNotEmpty) {
+      final capacity = double.tryParse(capacityText);
+      if (capacity != null && capacity > 0) {
+        await capacityRepo.set(_currentType, capacity);
+      }
+    }
 
     final next = widget.remaining.sublist(1);
     if (next.isEmpty) {
@@ -107,8 +121,6 @@ class _CredentialInputScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final meta = kServiceMeta[_currentType]!;
-    final total = widget.remaining.length;
-    // We can't know total without original list, so show step indicator from remaining
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -125,6 +137,7 @@ class _CredentialInputScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 8),
+                // Service header
                 Row(
                   children: [
                     Container(
@@ -143,7 +156,7 @@ class _CredentialInputScreenState
                         Text(meta.displayName,
                             style: theme.textTheme.titleLarge),
                         Text(
-                          '$total service${total == 1 ? '' : 's'} remaining',
+                          '$_remaining service${_remaining == 1 ? '' : 's'} remaining',
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
@@ -151,7 +164,32 @@ class _CredentialInputScreenState
                   ],
                 ),
                 const SizedBox(height: 32),
-                ..._buildFields(),
+                // Credential fields
+                ..._buildCredentialFields(),
+                const SizedBox(height: 24),
+                // Capacity section
+                _SectionLabel(
+                  label: 'Usage limit',
+                  subtitle: _capacityLabel,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _capacityCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                  ],
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 14),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount (USD) — optional',
+                    hintText: '100.00',
+                    prefixText: '\$ ',
+                    prefixStyle: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 14),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 _SecurityNote(type: _currentType),
                 const SizedBox(height: 24),
@@ -162,11 +200,9 @@ class _CredentialInputScreenState
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
+                              strokeWidth: 2, color: Colors.white),
                         )
-                      : Text(total > 1 ? 'Save & Continue' : 'Save & Finish'),
+                      : Text(_remaining > 1 ? 'Save & Continue' : 'Save & Finish'),
                 ),
                 const SizedBox(height: 40),
               ],
@@ -177,15 +213,28 @@ class _CredentialInputScreenState
     );
   }
 
-  List<Widget> _buildFields() {
+  String get _capacityLabel => switch (_currentType) {
+        ServiceType.anthropic || ServiceType.openai || ServiceType.gemini =>
+          'How many USD in credits did you purchase?',
+        ServiceType.aws || ServiceType.oracle =>
+          'What is your monthly cloud budget in USD?',
+      };
+
+  List<Widget> _buildCredentialFields() {
     return switch (_currentType) {
       ServiceType.anthropic || ServiceType.openai => [
-          _ApiKeyField(controller: _apiKeyCtrl, obscure: _obscure,
-              onToggle: () => setState(() => _obscure = !_obscure)),
+          _ApiKeyField(
+            controller: _apiKeyCtrl,
+            obscure: _obscure,
+            onToggle: () => setState(() => _obscure = !_obscure),
+          ),
         ],
       ServiceType.gemini => [
-          _ApiKeyField(controller: _apiKeyCtrl, obscure: _obscure,
-              onToggle: () => setState(() => _obscure = !_obscure)),
+          _ApiKeyField(
+            controller: _apiKeyCtrl,
+            obscure: _obscure,
+            onToggle: () => setState(() => _obscure = !_obscure),
+          ),
           const SizedBox(height: 14),
           _Field(
             controller: _projectIdCtrl,
@@ -251,7 +300,31 @@ class _CredentialInputScreenState
   }
 }
 
-// ── Reusable field widgets ────────────────────────────────────────────────────
+// ── Reusable widgets ──────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label, required this.subtitle});
+  final String label;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(subtitle,
+            style: const TextStyle(
+                color: AppColors.textSecondary, fontSize: 13)),
+      ],
+    );
+  }
+}
 
 class _ApiKeyField extends StatelessWidget {
   const _ApiKeyField({
@@ -275,7 +348,9 @@ class _ApiKeyField extends StatelessWidget {
         hintText: 'sk-••••••••••••••••',
         suffixIcon: IconButton(
           icon: Icon(
-            obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            obscure
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
             color: AppColors.textSecondary,
             size: 18,
           ),
@@ -315,19 +390,15 @@ class _Field extends StatelessWidget {
       maxLines: maxLines,
       keyboardType: keyboardType,
       style: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 14,
-        fontFamily: 'monospace',
-      ),
+          color: AppColors.textPrimary, fontSize: 14, fontFamily: 'monospace'),
       decoration: InputDecoration(labelText: label, hintText: hint),
       validator: required
-          ? (v) => (v == null || v.trim().isEmpty) ? '$label is required' : null
+          ? (v) =>
+              (v == null || v.trim().isEmpty) ? '$label is required' : null
           : null,
     );
   }
 }
-
-// ── Security note ─────────────────────────────────────────────────────────────
 
 class _SecurityNote extends StatelessWidget {
   const _SecurityNote({required this.type});
@@ -360,7 +431,9 @@ class _SecurityNote extends StatelessWidget {
           Expanded(
             child: Text(_note,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12, height: 1.5)),
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    height: 1.5)),
           ),
         ],
       ),

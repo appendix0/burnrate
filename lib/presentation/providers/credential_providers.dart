@@ -2,6 +2,7 @@ import 'package:burnrate/core/constants/storage_keys.dart';
 import 'package:burnrate/data/models/credential.dart';
 import 'package:burnrate/data/models/service_type.dart';
 import 'package:burnrate/data/repositories/alert_repository.dart';
+import 'package:burnrate/data/repositories/capacity_repository.dart';
 import 'package:burnrate/data/repositories/credential_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -30,6 +31,10 @@ final alertRepositoryProvider = Provider<AlertRepository>((ref) {
   return AlertRepository(ref.watch(sharedPreferencesProvider));
 });
 
+final capacityRepositoryProvider = Provider<CapacityRepository>((ref) {
+  return CapacityRepository(ref.watch(sharedPreferencesProvider));
+});
+
 // ── Credentials ───────────────────────────────────────────────────────────────
 
 final configuredServicesProvider = FutureProvider<List<ServiceType>>((ref) {
@@ -39,6 +44,16 @@ final configuredServicesProvider = FutureProvider<List<ServiceType>>((ref) {
 final credentialProvider =
     FutureProvider.family<Credential?, ServiceType>((ref, type) {
   return ref.watch(credentialRepositoryProvider).load(type);
+});
+
+// ── Capacities ────────────────────────────────────────────────────────────────
+
+final allCapacitiesProvider = Provider<Map<ServiceType, double>>((ref) {
+  return ref.watch(capacityRepositoryProvider).loadAll();
+});
+
+final capacityProvider = Provider.family<double?, ServiceType>((ref, type) {
+  return ref.watch(allCapacitiesProvider)[type];
 });
 
 // ── Onboarding state ──────────────────────────────────────────────────────────

@@ -13,4 +13,5 @@ class StorageKeys {
   static const String budgetAlerts = 'budget_alerts';
   static const String onboardingComplete = 'onboarding_complete';
   static const String lastRefreshedAt = 'last_refreshed_at';
+  static const String serviceCapacities = 'service_capacities';
 }
